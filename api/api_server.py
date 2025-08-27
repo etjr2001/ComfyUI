@@ -11,6 +11,7 @@ import base64
 import copy
 import uvicorn
 import logging
+from workflow import Workflow
 
 
 workflow_json = {}
@@ -43,12 +44,11 @@ logger = logging.getLogger('uvicorn.error')
 
 @app.get("/")
 async def read_root():
-    print(workflow_json)
     return {"Hello": "World"}
 
-@app.get("/workflow")
+@app.get("/workflow", response_model=Workflow)
 async def read_workflow():
-    return {"workflow": workflow_json}
+    return Workflow(workflow=workflow_json)
     
 @app.post("/images/")
 async def upload_images(file: UploadFile, type: str):
@@ -69,39 +69,75 @@ async def upload_images(file: UploadFile, type: str):
     return image_name
 
 
-#TODO: change start workflow to accept JSON (pydantic model) instead of query parameters
-#TODO: debug the output of websocket
-@app.get("/generate")
-async def start_workflow(human_image_name: str, garment_image_name: str):
-    logger.info(f"start_workflow: {human_image_name}, {garment_image_name}")
+@app.post("/generate")
+async def generate(workflow: Workflow):
+    """Starts ComfyUI workflow based on workflow provided
+
+    Args:
+        workflow (Workflow): JSON workflow in the format provided by GET /workflow request
+
+    Returns:
+        _type_: _description_
+    """
+    current_workflow_json = workflow.model_dump()
+    human_image_name = current_workflow_json["workflow"]["4"]["inputs"]["image"]
+    garment_image_name = current_workflow_json["workflow"]["8"]["inputs"]["image"]
+    logger.info(f"POST /generate >> Human Image:{human_image_name}, Garment Image:{garment_image_name}")
+
+
     human_image_path = convert_image_name_to_filepath(human_image_name)
     garment_image_path = convert_image_name_to_filepath(garment_image_name)
+    
     if not os.path.isfile(human_image_path):
         raise HTTPException(status_code=404, detail=f"Human image not found: {human_image_name}")
     
     if not os.path.isfile(garment_image_path):
         raise HTTPException(status_code=404, detail=f"Garment image not found: {garment_image_path}")
     
-    prompt = copy.deepcopy(workflow_json)
     
-    prompt["4"]["inputs"]["image"] = human_image_path
-    prompt["8"]["inputs"]["image"] = garment_image_path
+    current_workflow_json["workflow"]["4"]["inputs"]["image"] = human_image_path
+    current_workflow_json["workflow"]["8"]["inputs"]["image"] = garment_image_path
     
     ws = websocket.WebSocket()
-    ws.connect("ws://{}/ws?clientId={}".format(server_address, client_id))
-    images = get_images(ws, prompt)
     
-    result = []
-    
-    for node_id in images:
-        for image_data in images[node_id]:
-            result.append(image_to_base64(image_data))
-            
-            
     ws.close()
+    
+    return workflow
+
+
+# #TODO: change start workflow to accept JSON (pydantic model) instead of query parameters
+# #TODO: debug the output of websocket
+# @app.get("/generate")
+# async def start_workflow(human_image_name: str, garment_image_name: str):
+#     logger.info(f"start_workflow: {human_image_name}, {garment_image_name}")
+#     human_image_path = convert_image_name_to_filepath(human_image_name)
+#     garment_image_path = convert_image_name_to_filepath(garment_image_name)
+#     if not os.path.isfile(human_image_path):
+#         raise HTTPException(status_code=404, detail=f"Human image not found: {human_image_name}")
+    
+#     if not os.path.isfile(garment_image_path):
+#         raise HTTPException(status_code=404, detail=f"Garment image not found: {garment_image_path}")
+    
+#     prompt = copy.deepcopy(workflow_json)
+    
+#     prompt["4"]["inputs"]["image"] = human_image_path
+#     prompt["8"]["inputs"]["image"] = garment_image_path
+    
+#     ws = websocket.WebSocket()
+#     ws.connect("ws://{}/ws?clientId={}".format(server_address, client_id))
+#     images = get_images(ws, prompt)
+    
+#     result = []
+    
+#     for node_id in images:
+#         for image_data in images[node_id]:
+#             result.append(image_to_base64(image_data))
+            
+            
+#     ws.close()
 
     
-    return images
+#     return images
 
 
 def convert_image_name_to_filepath(image_name: str):

@@ -165,7 +165,7 @@
       "title": "Load IDM-VTON Pipeline"
     }
   },
-  "13": {
+  "14": {
     "inputs": {
       "filename_prefix": "ComfyUI",
       "images": [
