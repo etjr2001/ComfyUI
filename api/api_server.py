@@ -2,7 +2,8 @@ import json
 import os.path
 import uuid
 from contextlib import asynccontextmanager
-from fastapi import FastAPI, File, UploadFile, HTTPException, FileResponse
+from fastapi import FastAPI, File, UploadFile, HTTPException
+from fastapi.responses import FileResponse
 import urllib
 import websocket
 from PIL import Image
