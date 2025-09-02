@@ -132,6 +132,8 @@ async def generate(workflow: Workflow):
     ws.connect("ws://{}/ws?clientId={}".format(server_address, client_id))
 
     response = queue_prompt(current_workflow_json)
+    
+    prompt_id = response['prompt_id']
 
     current_node = ""
     while True:
