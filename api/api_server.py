@@ -3,7 +3,7 @@ import os.path
 import uuid
 from contextlib import asynccontextmanager
 from fastapi import FastAPI, File, UploadFile, HTTPException
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, JSONResponse
 import urllib
 import websocket
 from PIL import Image
@@ -62,19 +62,21 @@ async def upload_images(file: UploadFile):
         file (UploadFile): image in upload file format
 
     Returns:
-        image_name (str): UUID of the image stored in ComfyUI server
+        dict: UUID of the image stored in ComfyUI server
     """
     contents = await file.read()
     content_type = file.content_type.split("/")[1]
     
     # Generate UUID for image uploaded and save to ComfyUI input folder
-    image_name = str(uuid.uuid4())
-    file_location = f"{input_image_folder_path}/{image_name}.{content_type}"
+    image_uuid = str(uuid.uuid4())
+    file_location = f"{input_image_folder_path}/{image_uuid}.{content_type}"
     
     with open(file_location, "wb+") as file_object:
         file_object.write(contents)
     
-    return image_name
+    return JSONResponse(content={
+        "image_uuid": image_uuid
+        })
 
 @app.get("/images")
 async def download_images(image_uuid: str):
@@ -89,7 +91,7 @@ async def download_images(image_uuid: str):
     Returns:
         FileResponse: Image generated
     """
-    file_path = convert_image_name_to_filepath(image_uuid, "output")
+    file_path = convert_image_uuid_to_filepath(image_uuid, "output")
     filename = file_path.split("/")[-1]
     filetype = filename.split["."][-1]
     return FileResponse(path=file_path, filename=file_path, media_type=f"image/{filetype}")
@@ -105,16 +107,16 @@ async def generate(workflow: Workflow):
         filename_prefix (str): UUID of image generated. Used to download image by GET /images request
     """
     current_workflow_json = workflow.model_dump()
-    human_image_name = current_workflow_json["workflow"]["4"]["inputs"]["image"]
-    garment_image_name = current_workflow_json["workflow"]["8"]["inputs"]["image"]
-    logger.info(f"POST /generate >> Human Image:{human_image_name}, Garment Image:{garment_image_name}")
+    human_image_uuid = current_workflow_json["workflow"]["4"]["inputs"]["image"]
+    garment_image_uuid = current_workflow_json["workflow"]["8"]["inputs"]["image"]
+    logger.info(f"POST /generate >> Human Image:{human_image_uuid}, Garment Image:{garment_image_uuid}")
 
 
-    human_image_path = convert_image_name_to_filepath(human_image_name, "input")
-    garment_image_path = convert_image_name_to_filepath(garment_image_name, "input")
+    human_image_path = convert_image_uuid_to_filepath(human_image_uuid, "input")
+    garment_image_path = convert_image_uuid_to_filepath(garment_image_uuid, "input")
     
     if not os.path.isfile(human_image_path):
-        raise HTTPException(status_code=404, detail=f"Human image not found: {human_image_name}")
+        raise HTTPException(status_code=404, detail=f"Human image not found: {human_image_uuid}")
     
     if not os.path.isfile(garment_image_path):
         raise HTTPException(status_code=404, detail=f"Garment image not found: {garment_image_path}")
@@ -154,14 +156,14 @@ async def generate(workflow: Workflow):
     return filename_prefix
 
 
-def convert_image_name_to_filepath(image_name: str, folder: str):
+def convert_image_uuid_to_filepath(image_uuid: str, folder: str):
     filepath = None
     if (folder == "input"):
         filepath = input_image_folder_path
     if (folder == "output"):
         filepath = output_image_folder_path
 
-    prefixed = [entry for entry in os.listdir(filepath) if entry.startswith(image_name) and os.path.isfile(entry)]
+    prefixed = [entry for entry in os.listdir(filepath) if entry.startswith(image_uuid) and os.path.isfile(entry)]
     return prefixed[0]
 
 

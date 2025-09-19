@@ -1,4 +1,4 @@
-from pydantic import BaseModel, RootModel
+from pydantic import BaseModel, Field
 from typing import Dict, Any
 
 
@@ -8,7 +8,7 @@ class Meta(BaseModel):
 class Node(BaseModel):
     inputs: Dict[str, Any]  # Not validating inputs because different nodes have different inputs
     class_type: str
-    _meta: Meta
+    meta: Meta = Field(..., alias="_meta")
 
 
 class Workflow(BaseModel):
