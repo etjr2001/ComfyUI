@@ -13,3 +13,4 @@ class Node(BaseModel):
 
 class Workflow(BaseModel):
     workflow: Dict[str, Node]
+    meta: Meta = Field(..., alias="_meta")

@@ -1,0 +1,96 @@
+{
+  "1": {
+    "inputs": {
+      "image": "human_image.jpg"
+    },
+    "class_type": "LoadImage",
+    "_meta": {
+      "title": "Load Human Image"
+    }
+  },
+  "2": {
+    "inputs": {
+      "image": "pose_00001_.png"
+    },
+    "class_type": "LoadImage",
+    "_meta": {
+      "title": "Load Pose Image"
+    }
+  },
+  "3": {
+    "inputs": {
+      "image": "mask_00001_.png"
+    },
+    "class_type": "LoadImage",
+    "_meta": {
+      "title": "Load Mask Image"
+    }
+  },
+  "4": {
+    "inputs": {
+      "image": "garment_image.jpg"
+    },
+    "class_type": "LoadImage",
+    "_meta": {
+      "title": "Load Garment Image"
+    }
+  },
+  "5": {
+    "inputs": {
+      "weight_dtype": "float16"
+    },
+    "class_type": "PipelineLoader",
+    "_meta": {
+      "title": "Load IDM-VTON Pipeline"
+    }
+  },
+  "6": {
+    "inputs": {
+      "garment_description": "shirt",
+      "negative_prompt": "monochrome, lowres, bad anatomy, worst quality, low quality",
+      "width": 768,
+      "height": 1024,
+      "num_inference_steps": 30,
+      "guidance_scale": 2,
+      "strength": 1,
+      "seed": 42,
+      "pipeline": [
+        "5",
+        0
+      ],
+      "human_img": [
+        "1",
+        0
+      ],
+      "pose_img": [
+        "2",
+        0
+      ],
+      "mask_img": [
+        "3",
+        0
+      ],
+      "garment_img": [
+        "4",
+        0
+      ]
+    },
+    "class_type": "IDM-VTON",
+    "_meta": {
+      "title": "Run IDM-VTON Inference"
+    }
+  },
+  "7": {
+    "inputs": {
+      "filename_prefix": "tryon",
+      "images": [
+        "6",
+        0
+      ]
+    },
+    "class_type": "SaveImage",
+    "_meta": {
+      "title": "Save Image"
+    }
+  }
+}

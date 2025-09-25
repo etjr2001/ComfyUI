@@ -1,0 +1,39 @@
+{
+  "1": {
+    "inputs": {
+      "image": "human_image.jpg"
+    },
+    "class_type": "LoadImage",
+    "_meta": {
+      "title": "Load Human Image"
+    }
+  },
+  "2": {
+    "inputs": {
+      "model": "densepose_r50_fpn_dl.torchscript",
+      "cmap": "Parula (CivitAI)",
+      "resolution": 768,
+      "image": [
+        "1",
+        0
+      ]
+    },
+    "class_type": "DensePosePreprocessor",
+    "_meta": {
+      "title": "DensePose Estimator"
+    }
+  },
+  "3": {
+    "inputs": {
+      "filename_prefix": "pose",
+      "images": [
+        "2",
+        0
+      ]
+    },
+    "class_type": "SaveImage",
+    "_meta": {
+      "title": "Save Image"
+    }
+  }
+}

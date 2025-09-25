@@ -19,7 +19,7 @@
   },
   "3": {
     "inputs": {
-      "prompt": "shirt and blazer",
+      "prompt": "shirt",
       "threshold": 0.3,
       "sam_model": [
         "1",
@@ -41,7 +41,7 @@
   },
   "4": {
     "inputs": {
-      "image": "human_image3.jpg"
+      "image": "human_image.jpg"
     },
     "class_type": "LoadImage",
     "_meta": {
@@ -122,7 +122,7 @@
   },
   "11": {
     "inputs": {
-      "garment_description": "a shirt",
+      "garment_description": "shirt",
       "negative_prompt": "monochrome, lowres, bad anatomy, worst quality, low quality",
       "width": 768,
       "height": 1024,
