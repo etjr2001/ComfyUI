@@ -1,7 +1,7 @@
 {
   "1": {
     "inputs": {
-      "image": "human_image.jpg"
+      "image": "sample_human_image.jpg"
     },
     "class_type": "LoadImage",
     "_meta": {

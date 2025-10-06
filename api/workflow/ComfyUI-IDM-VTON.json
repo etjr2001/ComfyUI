@@ -41,7 +41,7 @@
   },
   "4": {
     "inputs": {
-      "image": "human_image.jpg"
+      "image": "sample_human_image.jpg"
     },
     "class_type": "LoadImage",
     "_meta": {
@@ -89,7 +89,7 @@
   },
   "8": {
     "inputs": {
-      "image": "garment_image.jpg"
+      "image": "sample_garment_image.jpg"
     },
     "class_type": "LoadImage",
     "_meta": {
