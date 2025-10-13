@@ -3,7 +3,7 @@ import os.path
 import uuid
 from contextlib import asynccontextmanager
 from fastapi import FastAPI, File, UploadFile, HTTPException
-from fastapi.responses import FileResponse, JSONResponse
+from fastapi.responses import FileResponse, JSONResponse, Response
 import urllib
 import websocket
 from PIL import Image
@@ -11,6 +11,7 @@ import io
 import base64
 import logging
 from workflow import Workflow, Meta
+import zipfile
 
 
 default_workflow_json = {}
@@ -131,10 +132,28 @@ async def download_images(image_uuid: str):
         FileResponse: Image requested
     """
     logger.info(f"GET /images image_uuid: {image_uuid}")
-    file_path = convert_image_uuid_to_filepath(image_uuid)
-    filename = file_path.split("/")[-1]
-    filetype = filename.split(".")[-1]
-    return FileResponse(path=file_path, filename=file_path, media_type=f"image/{filetype}")
+    file_paths = convert_image_uuid_to_filepaths(image_uuid)
+    return zipfiles(file_paths)
+
+def zipfiles(filenames):
+    zip_filename = "images.zip"
+    s = io.BytesIO()
+    zf = zipfile.ZipFile(s, "w")
+    
+    for fpath in filenames:
+        fdir, fname = os.path.split(fpath)
+        
+        zf.write(fpath, fname)
+        
+    zf.close()
+    
+    response = Response(s.getvalue(), 
+                        media_type="application/x-zip-compressed", 
+                        headers={
+                            "Content-Disposition": f"attachment;filename={zip_filename}"
+                        })
+    
+    return response
 
 
 @app.post("/run")
@@ -178,7 +197,7 @@ def run_mask_workflow(mask_workflow: Workflow):
     """
     current_workflow_json = mask_workflow.model_dump(by_alias=True)
     human_image_uuid = current_workflow_json["workflow"]["1"]["inputs"]["image"]
-    human_image_path = convert_image_uuid_to_filepath(human_image_uuid)
+    human_image_path = convert_image_uuid_to_filepaths(human_image_uuid)
     
     if not os.path.isfile(human_image_path):
         raise HTTPException(status_code=404, detail=f"Human image not found: {human_image_uuid}")
@@ -204,7 +223,7 @@ def run_pose_workflow(pose_workflow: Workflow):
     """
     current_workflow_json = pose_workflow.model_dump(by_alias=True)
     human_image_uuid = current_workflow_json["workflow"]["1"]["inputs"]["image"]
-    human_image_path = convert_image_uuid_to_filepath(human_image_uuid)
+    human_image_path = convert_image_uuid_to_filepaths(human_image_uuid)
     
     if not os.path.isfile(human_image_path):
         raise HTTPException(status_code=404, detail=f"Human image not found: {human_image_uuid}")
@@ -233,7 +252,7 @@ def run_pipeline_workflow(pipeline_workflow: Workflow):
     """
     current_workflow_json = pipeline_workflow.model_dump(by_alias=True)
     human_image_uuid = current_workflow_json["workflow"]["1"]["inputs"]["image"]
-    human_image_path = convert_image_uuid_to_filepath(human_image_uuid)
+    human_image_path = convert_image_uuid_to_filepaths(human_image_uuid)
     
     if not os.path.isfile(human_image_path):
         raise HTTPException(status_code=404, detail=f"Human image not found: {human_image_uuid}")
@@ -242,7 +261,7 @@ def run_pipeline_workflow(pipeline_workflow: Workflow):
     
 
     pose_image_uuid = current_workflow_json["workflow"]["2"]["inputs"]["image"]
-    pose_image_path = convert_image_uuid_to_filepath(pose_image_uuid)
+    pose_image_path = convert_image_uuid_to_filepaths(pose_image_uuid)
     
     if not os.path.isfile(pose_image_path):
         raise HTTPException(status_code=404, detail=f"Pose image not found: {pose_image_uuid}")
@@ -251,7 +270,7 @@ def run_pipeline_workflow(pipeline_workflow: Workflow):
     
     
     mask_image_uuid = current_workflow_json["workflow"]["3"]["inputs"]["image"]
-    mask_image_path = convert_image_uuid_to_filepath(mask_image_uuid)
+    mask_image_path = convert_image_uuid_to_filepaths(mask_image_uuid)
     
     if not os.path.isfile(mask_image_path):
         raise HTTPException(status_code=404, detail=f"Mask image not found: {mask_image_uuid}")
@@ -260,7 +279,7 @@ def run_pipeline_workflow(pipeline_workflow: Workflow):
     
     
     garment_image_uuid = current_workflow_json["workflow"]["4"]["inputs"]["image"]
-    garment_image_path = convert_image_uuid_to_filepath(garment_image_uuid)
+    garment_image_path = convert_image_uuid_to_filepaths(garment_image_uuid)
     
     if not os.path.isfile(garment_image_path):
         raise HTTPException(status_code=404, detail=f"Garment image not found: {garment_image_uuid}")
@@ -277,6 +296,9 @@ def run_pipeline_workflow(pipeline_workflow: Workflow):
     filename_prefix = str(uuid.uuid4())
     
     current_workflow_json["workflow"]["7"]["inputs"]["filename_prefix"] = filename_prefix
+    
+    # Run updated IDM-VTON_V2
+    current_workflow_json["workflow"]["6"]["class_type"] = "IDM-VTON_V2"
     
     run_prompt(current_workflow_json)
     
@@ -297,8 +319,8 @@ def run_default_workflow(default_workflow: Workflow):
     logger.info(f"POST /generate >> Human Image:{human_image_uuid}, Garment Image:{garment_image_uuid}")
 
 
-    human_image_path = convert_image_uuid_to_filepath(human_image_uuid)
-    garment_image_path = convert_image_uuid_to_filepath(garment_image_uuid)
+    human_image_path = convert_image_uuid_to_filepaths(human_image_uuid)
+    garment_image_path = convert_image_uuid_to_filepaths(garment_image_uuid)
     
     if not os.path.isfile(human_image_path):
         raise HTTPException(status_code=404, detail=f"Human image not found: {human_image_uuid}")
@@ -319,6 +341,9 @@ def run_default_workflow(default_workflow: Workflow):
     
     width = current_workflow_json["workflow"]["11"]["inputs"]["width"]
     current_workflow_json["workflow"]["11"]["inputs"]["width"] = round_down_to_multiple(width, 8)
+        
+    # Run updated IDM-VTON_V2
+    current_workflow_json["workflow"]["6"]["class_type"] = "IDM-VTON_V2"
 
     filename_prefix = str(uuid.uuid4())
 
@@ -359,7 +384,7 @@ def run_prompt(workflow_json):
     ws.close()
 
 
-def convert_image_uuid_to_filepath(image_uuid: str):
+def convert_image_uuid_to_filepaths(image_uuid: str):
     logger.info(f"convert_image_uuid_to_filepath: {image_uuid}")
     
     filepaths = [input_image_folder_path, output_image_folder_path]
@@ -374,7 +399,7 @@ def convert_image_uuid_to_filepath(image_uuid: str):
             
     if not prefixed:
         raise HTTPException(status_code=404, detail="Image not found")
-    return prefixed[-1]
+    return prefixed
 
 
 def queue_prompt(prompt):
