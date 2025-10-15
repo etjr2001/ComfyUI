@@ -2,8 +2,8 @@ import json
 import os.path
 import uuid
 from contextlib import asynccontextmanager
-from fastapi import FastAPI, File, UploadFile, HTTPException
-from fastapi.responses import FileResponse, JSONResponse, Response
+from fastapi import FastAPI, UploadFile, HTTPException
+from fastapi.responses import JSONResponse, Response
 import urllib
 import websocket
 from PIL import Image
@@ -37,9 +37,9 @@ async def lifespan(app: FastAPI):
     parent_dir = os.path.dirname(base_path)
     input_image_folder_path = os.path.join(parent_dir, "input")
     output_image_folder_path = os.path.join(parent_dir, "output")
-    
+
     workflow_path = os.path.join(base_path, "workflow")
-    
+
     def load_workflow_json(workflow_path, json_file_name):
         path = os.path.join(workflow_path, json_file_name)
         try:
@@ -50,18 +50,18 @@ async def lifespan(app: FastAPI):
         except Exception as e:
             print(f"Failed to load {json_file_name}")
             return None
-    
+
     default_workflow_json = load_workflow_json(workflow_path, "ComfyUI-IDM-VTON.json")
     generate_mask_for_human_image_workflow_json = load_workflow_json(workflow_path, "generate_mask_for_human_image.json")
     generate_pose_for_human_image_workflow_json = load_workflow_json(workflow_path, "generate_pose_for_human_image.json")
     run_idm_vton_pipeline_workflow_json = load_workflow_json(workflow_path, "run_idm_vton_pipeline.json")
-    
+
     yield
     default_workflow_json.clear()
     generate_mask_for_human_image_workflow_json.clear()
     generate_pose_for_human_image_workflow_json.clear()
     run_idm_vton_pipeline_workflow_json.clear()
-    
+
 
 
 app = FastAPI(lifespan=lifespan)
@@ -93,7 +93,7 @@ async def read_workflow(workflow: str | None = None):
                             _meta=Meta(title="pipeline"))
     return Workflow(workflow=default_workflow_json,
                     _meta=Meta(title="default"))
-    
+
 @app.post("/images")
 async def upload_images(file: UploadFile):
     """Upload images to ComfyUI Server
@@ -106,14 +106,14 @@ async def upload_images(file: UploadFile):
     """
     contents = await file.read()
     content_type = file.content_type.split("/")[1]
-    
+
     # Generate UUID for image uploaded and save to ComfyUI input folder
     image_uuid = str(uuid.uuid4())
     file_location = f"{input_image_folder_path}/{image_uuid}.{content_type}"
-    
+
     with open(file_location, "wb+") as file_object:
         file_object.write(contents)
-    
+
     return JSONResponse(content={
         "image_uuid": image_uuid
         })
@@ -129,7 +129,7 @@ async def download_images(image_uuid: str):
         HTTPException: 404 Image not found
 
     Returns:
-        FileResponse: Image requested
+        Response: Zip of images requested
     """
     logger.info(f"GET /images image_uuid: {image_uuid}")
     file_paths = convert_image_uuid_to_filepaths(image_uuid)
@@ -139,20 +139,20 @@ def zipfiles(filenames):
     zip_filename = "images.zip"
     s = io.BytesIO()
     zf = zipfile.ZipFile(s, "w")
-    
+
     for fpath in filenames:
         fdir, fname = os.path.split(fpath)
-        
+
         zf.write(fpath, fname)
-        
+
     zf.close()
-    
-    response = Response(s.getvalue(), 
-                        media_type="application/x-zip-compressed", 
+
+    response = Response(s.getvalue(),
+                        media_type="application/x-zip-compressed",
                         headers={
                             "Content-Disposition": f"attachment;filename={zip_filename}"
                         })
-    
+
     return response
 
 
@@ -191,54 +191,54 @@ def run_mask_workflow(mask_workflow: Workflow):
 
     Args:
         mask_workflow (Workflow): JSON workflow to generate mask provided by GET /workflows?workflow=mask request
-        
+
     Returns:
         filename_prefix (str): UUID of mask image generated. Used to download image by GET /images request
     """
     current_workflow_json = mask_workflow.model_dump(by_alias=True)
     human_image_uuid = current_workflow_json["workflow"]["1"]["inputs"]["image"]
     human_image_path = convert_image_uuid_to_filepaths(human_image_uuid)
-    
+
     if not os.path.isfile(human_image_path):
         raise HTTPException(status_code=404, detail=f"Human image not found: {human_image_uuid}")
-    
+
     current_workflow_json["workflow"]["1"]["inputs"]["image"] = human_image_path
-    
+
     filename_prefix = str(uuid.uuid4())
-    
+
     current_workflow_json["workflow"]["6"]["inputs"]["filename_prefix"] = filename_prefix
-    
+
     run_prompt(current_workflow_json)
-    
+
     return filename_prefix
-    
+
 def run_pose_workflow(pose_workflow: Workflow):
     """Run workflow to generate pose from human image
 
     Args:
         pose_workflow (Workflow): JSON workflow to generate pose provided by GET /workflows?workflow=pose request
-        
+
     Returns:
         filename_prefix (str): UUID of pose image generated. Used to download image by GET /images request
     """
     current_workflow_json = pose_workflow.model_dump(by_alias=True)
     human_image_uuid = current_workflow_json["workflow"]["1"]["inputs"]["image"]
     human_image_path = convert_image_uuid_to_filepaths(human_image_uuid)
-    
+
     if not os.path.isfile(human_image_path):
         raise HTTPException(status_code=404, detail=f"Human image not found: {human_image_uuid}")
-    
+
     current_workflow_json["workflow"]["1"]["inputs"]["image"] = human_image_path
-    
+
     resolution = current_workflow_json["workflow"]["2"]["inputs"]["resolution"]
     current_workflow_json["workflow"]["2"]["inputs"]["resolution"] = round_down_to_multiple(resolution, 8)
-    
+
     filename_prefix = str(uuid.uuid4())
-    
+
     current_workflow_json["workflow"]["3"]["inputs"]["filename_prefix"] = filename_prefix
-    
+
     run_prompt(current_workflow_json)
-    
+
     return filename_prefix
 
 def run_pipeline_workflow(pipeline_workflow: Workflow):
@@ -246,62 +246,62 @@ def run_pipeline_workflow(pipeline_workflow: Workflow):
 
     Args:
         pipeline_workflow (Workflow): JSON workflow to generate tryon provided by GET /workflows?workflow=pipeline request
-        
+
     Returns:
         filename_prefix (str): UUID of tryon image generated. Used to download image by GET /images request
     """
     current_workflow_json = pipeline_workflow.model_dump(by_alias=True)
     human_image_uuid = current_workflow_json["workflow"]["1"]["inputs"]["image"]
     human_image_path = convert_image_uuid_to_filepaths(human_image_uuid)
-    
+
     if not os.path.isfile(human_image_path):
         raise HTTPException(status_code=404, detail=f"Human image not found: {human_image_uuid}")
-    
+
     current_workflow_json["workflow"]["1"]["inputs"]["image"] = human_image_path
-    
+
 
     pose_image_uuid = current_workflow_json["workflow"]["2"]["inputs"]["image"]
     pose_image_path = convert_image_uuid_to_filepaths(pose_image_uuid)
-    
+
     if not os.path.isfile(pose_image_path):
         raise HTTPException(status_code=404, detail=f"Pose image not found: {pose_image_uuid}")
-    
+
     current_workflow_json["workflow"]["2"]["inputs"]["image"] = pose_image_path
-    
-    
+
+
     mask_image_uuid = current_workflow_json["workflow"]["3"]["inputs"]["image"]
     mask_image_path = convert_image_uuid_to_filepaths(mask_image_uuid)
-    
+
     if not os.path.isfile(mask_image_path):
         raise HTTPException(status_code=404, detail=f"Mask image not found: {mask_image_uuid}")
-    
+
     current_workflow_json["workflow"]["3"]["inputs"]["image"] = mask_image_path
-    
-    
+
+
     garment_image_uuid = current_workflow_json["workflow"]["4"]["inputs"]["image"]
     garment_image_path = convert_image_uuid_to_filepaths(garment_image_uuid)
-    
+
     if not os.path.isfile(garment_image_path):
         raise HTTPException(status_code=404, detail=f"Garment image not found: {garment_image_uuid}")
-    
+
     current_workflow_json["workflow"]["4"]["inputs"]["image"] = garment_image_path
-    
+
     height = current_workflow_json["workflow"]["6"]["inputs"]["height"]
     current_workflow_json["workflow"]["6"]["inputs"]["height"] = round_down_to_multiple(height, 8)
-    
+
     width = current_workflow_json["workflow"]["6"]["inputs"]["width"]
     current_workflow_json["workflow"]["6"]["inputs"]["width"] = round_down_to_multiple(width, 8)
-    
-    
+
+
     filename_prefix = str(uuid.uuid4())
-    
+
     current_workflow_json["workflow"]["7"]["inputs"]["filename_prefix"] = filename_prefix
-    
+
     # Run updated IDM-VTON_V2
     current_workflow_json["workflow"]["6"]["class_type"] = "IDM-VTON_V2"
-    
+
     run_prompt(current_workflow_json)
-    
+
     return filename_prefix
 
 def run_default_workflow(default_workflow: Workflow):
@@ -321,36 +321,36 @@ def run_default_workflow(default_workflow: Workflow):
 
     human_image_path = convert_image_uuid_to_filepaths(human_image_uuid)
     garment_image_path = convert_image_uuid_to_filepaths(garment_image_uuid)
-    
+
     if not os.path.isfile(human_image_path):
         raise HTTPException(status_code=404, detail=f"Human image not found: {human_image_uuid}")
-    
+
     if not os.path.isfile(garment_image_path):
         raise HTTPException(status_code=404, detail=f"Garment image not found: {garment_image_path}")
-    
-    
+
+
     current_workflow_json["workflow"]["4"]["inputs"]["image"] = human_image_path
-    
+
     resolution = current_workflow_json["workflow"]["5"]["inputs"]["resolution"]
     current_workflow_json["workflow"]["5"]["inputs"]["resolution"] = round_down_to_multiple(resolution, 8)
-    
+
     current_workflow_json["workflow"]["8"]["inputs"]["image"] = garment_image_path
-    
+
     height = current_workflow_json["workflow"]["11"]["inputs"]["height"]
     current_workflow_json["workflow"]["11"]["inputs"]["height"] = round_down_to_multiple(height, 8)
-    
+
     width = current_workflow_json["workflow"]["11"]["inputs"]["width"]
     current_workflow_json["workflow"]["11"]["inputs"]["width"] = round_down_to_multiple(width, 8)
-        
+
     # Run updated IDM-VTON_V2
     current_workflow_json["workflow"]["6"]["class_type"] = "IDM-VTON_V2"
 
     filename_prefix = str(uuid.uuid4())
 
     current_workflow_json["workflow"]["13"]["inputs"]["filename_prefix"] = filename_prefix
-    
+
     run_prompt(current_workflow_json)
-    
+
     return filename_prefix
 
 def round_down_to_multiple(value: int, multiple: int):
@@ -358,13 +358,13 @@ def round_down_to_multiple(value: int, multiple: int):
 
 def run_prompt(workflow_json):
     logger.info(f"run_prompt: {workflow_json}")
-    
+
     ws = websocket.WebSocket()
 
     ws.connect("ws://{}/ws?clientId={}".format(server_address, client_id))
 
     response = queue_prompt(workflow_json["workflow"])
-    
+
     prompt_id = response['prompt_id']
 
     current_node = ""
@@ -380,15 +380,15 @@ def run_prompt(workflow_json):
                         break #Execution is done
                     else:
                         current_node = data['node']
-    
+
     ws.close()
 
 
 def convert_image_uuid_to_filepaths(image_uuid: str):
     logger.info(f"convert_image_uuid_to_filepath: {image_uuid}")
-    
+
     filepaths = [input_image_folder_path, output_image_folder_path]
-    
+
     uuid = image_uuid
     prefixed = []
     for filepath in filepaths:
@@ -396,7 +396,7 @@ def convert_image_uuid_to_filepaths(image_uuid: str):
             fullpath = os.path.join(filepath, entry)
             if entry.startswith(uuid) and os.path.isfile(fullpath):
                 prefixed.append(fullpath)
-            
+
     if not prefixed:
         raise HTTPException(status_code=404, detail="Image not found")
     return prefixed
