@@ -21,8 +21,10 @@ run_idm_vton_pipeline_workflow_json = {}
 input_image_folder_path = None
 output_image_folder_path = None
 
+
 server_address = "127.0.0.1:8188"  # ComfyUI server address
 client_id = str(uuid.uuid4())
+
 
 # Import json workflow
 @asynccontextmanager
@@ -45,10 +47,11 @@ async def lifespan(app: FastAPI):
         try:
             with open(path, 'r') as f:
                 workflow_json = json.load(f)
-            print(f"{json_file_name} loaded successfully")
+            logger.info(f"{json_file_name} loaded successfully")
             return workflow_json
         except Exception as e:
-            print(f"Failed to load {json_file_name}")
+            logger.error(f"Failed to load {json_file_name}")
+            logger.error(e)
             return None
 
     default_workflow_json = load_workflow_json(workflow_path, "ComfyUI-IDM-VTON.json")
@@ -63,13 +66,14 @@ async def lifespan(app: FastAPI):
     run_idm_vton_pipeline_workflow_json.clear()
 
 
-
 app = FastAPI(lifespan=lifespan)
 logger = logging.getLogger('uvicorn.error')
+
 
 @app.get("/")
 async def read_root():
     return {"Hello": "World"}
+
 
 @app.get("/workflows", response_model=Workflow)
 async def read_workflow(workflow: str | None = None):
@@ -93,6 +97,7 @@ async def read_workflow(workflow: str | None = None):
                             _meta=Meta(title="pipeline"))
     return Workflow(workflow=default_workflow_json,
                     _meta=Meta(title="default"))
+
 
 @app.post("/images")
 async def upload_images(file: UploadFile):
@@ -118,6 +123,7 @@ async def upload_images(file: UploadFile):
         "image_uuid": image_uuid
         })
 
+
 @app.get("/images/{image_uuid}")
 async def download_images(image_uuid: str):
     """Download image from ComfyUI Server
@@ -134,6 +140,7 @@ async def download_images(image_uuid: str):
     logger.info(f"GET /images image_uuid: {image_uuid}")
     file_paths = convert_image_uuid_to_filepaths(image_uuid)
     return zipfiles(file_paths)
+
 
 def zipfiles(filenames):
     zip_filename = "images.zip"
@@ -186,6 +193,7 @@ async def run_workflow(workflow: Workflow):
         "image_uuid": output_uuid
         })
 
+
 def run_mask_workflow(mask_workflow: Workflow):
     """Run workflow to generate mask from human image
 
@@ -211,6 +219,7 @@ def run_mask_workflow(mask_workflow: Workflow):
     run_prompt(current_workflow_json)
 
     return filename_prefix
+
 
 def run_pose_workflow(pose_workflow: Workflow):
     """Run workflow to generate pose from human image
@@ -240,6 +249,7 @@ def run_pose_workflow(pose_workflow: Workflow):
     run_prompt(current_workflow_json)
 
     return filename_prefix
+
 
 def run_pipeline_workflow(pipeline_workflow: Workflow):
     """Run pipeline using generated masking and pose estimation. Requires all images to already be generated.
@@ -304,6 +314,7 @@ def run_pipeline_workflow(pipeline_workflow: Workflow):
 
     return filename_prefix
 
+
 def run_default_workflow(default_workflow: Workflow):
     """Run default workflow
 
@@ -353,8 +364,10 @@ def run_default_workflow(default_workflow: Workflow):
 
     return filename_prefix
 
+
 def round_down_to_multiple(value: int, multiple: int):
     return (value // multiple) * multiple
+
 
 def run_prompt(workflow_json):
     logger.info(f"run_prompt: {workflow_json}")
